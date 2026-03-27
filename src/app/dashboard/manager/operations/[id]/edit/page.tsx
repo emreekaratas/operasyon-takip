@@ -1,38 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useOperations } from "@/context/OperationContext";
-import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
-import { Step } from "@/types";
+import { Operation, Step } from "@/types";
 
-export default function NewOperationPage() {
+interface EditFormProps {
+  operation: Operation;
+  hasActiveAssignments: boolean;
+}
+
+function EditForm({ operation, hasActiveAssignments }: EditFormProps) {
   const router = useRouter();
-  const { addOperation } = useOperations();
-  const { user } = useAuth();
+  const { updateOperation } = useOperations();
   const { showToast } = useToast();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState<Omit<Step, "id" | "status">[]>([
-    { title: "", description: "", order: 1 },
-  ]);
+  const [title, setTitle] = useState(operation.title);
+  const [description, setDescription] = useState(operation.description);
+  const [steps, setSteps] = useState<Omit<Step, "status">[]>(
+    operation.steps.map((s) => ({
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      order: s.order,
+    }))
+  );
 
   const addStep = () => {
     setSteps([
       ...steps,
-      { title: "", description: "", order: steps.length + 1 },
+      {
+        id: crypto.randomUUID(),
+        title: "",
+        description: "",
+        order: steps.length + 1,
+      },
     ]);
   };
 
   const removeStep = (index: number) => {
     if (steps.length <= 1) return;
-    const next = steps.filter((_, i) => i !== index).map((s, i) => ({ ...s, order: i + 1 }));
+    if (hasActiveAssignments) {
+      showToast("Aktif atama varken adım silinemez", "error");
+      return;
+    }
+    const next = steps
+      .filter((_, i) => i !== index)
+      .map((s, i) => ({ ...s, order: i + 1 }));
     setSteps(next);
   };
 
-  const updateStep = (index: number, field: "title" | "description", value: string) => {
+  const updateStep = (
+    index: number,
+    field: "title" | "description",
+    value: string
+  ) => {
     const next = [...steps];
     next[index] = { ...next[index], [field]: value };
     setSteps(next);
@@ -42,21 +65,21 @@ export default function NewOperationPage() {
     e.preventDefault();
     if (!title.trim() || steps.some((s) => !s.title.trim())) return;
 
-    const fullSteps: Step[] = steps.map((s, i) => ({
-      ...s,
-      id: crypto.randomUUID(),
-      status: i === 0 ? "in_progress" : "pending",
-    }));
+    const fullSteps: Step[] = steps.map((s, i) => {
+      const existing = operation.steps.find((os) => os.id === s.id);
+      return {
+        ...s,
+        status: existing?.status ?? (i === 0 ? "in_progress" : "pending"),
+      };
+    });
 
-    addOperation({
+    updateOperation(operation.id, {
       title: title.trim(),
       description: description.trim(),
       steps: fullSteps,
-      status: "draft",
-      createdBy: user?.id ?? "",
     });
 
-    showToast("Operasyon başarıyla oluşturuldu", "success");
+    showToast("Operasyon başarıyla güncellendi", "success");
     router.push("/dashboard/manager/operations");
   };
 
@@ -69,16 +92,55 @@ export default function NewOperationPage() {
           onClick={() => router.back()}
           className="flex items-center gap-1 text-sm text-muted hover:text-foreground transition-colors cursor-pointer mb-4"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
           </svg>
           Geri
         </button>
-        <h1 className="text-2xl font-bold text-foreground">Yeni Operasyon</h1>
+        <h1 className="text-2xl font-bold text-foreground">
+          Operasyonu Düzenle
+        </h1>
         <p className="text-sm text-muted mt-1">
-          Operasyon detaylarını ve adımlarını tanımlayın
+          Operasyon detaylarını ve adımlarını güncelleyin
         </p>
       </div>
+
+      {hasActiveAssignments && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <svg
+            className="w-5 h-5 text-orange-600 shrink-0 mt-0.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
+          <div>
+            <div className="text-sm font-medium text-orange-800">
+              Aktif atama mevcut
+            </div>
+            <div className="text-xs text-orange-600 mt-0.5">
+              Bu operasyona atanmış aktif işçiler var. Adım silme işlemi
+              engellenmiştir.
+            </div>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-card rounded-2xl border border-border p-6 space-y-4">
@@ -116,8 +178,18 @@ export default function NewOperationPage() {
               onClick={addStep}
               className="flex items-center gap-1 text-sm text-primary hover:text-primary-hover font-medium cursor-pointer"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Adım Ekle
             </button>
@@ -126,7 +198,7 @@ export default function NewOperationPage() {
           <div className="space-y-3">
             {steps.map((step, i) => (
               <div
-                key={i}
+                key={step.id}
                 className="flex gap-3 items-start p-4 bg-slate-50 rounded-xl animate-fade-in"
               >
                 <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
@@ -143,7 +215,9 @@ export default function NewOperationPage() {
                   <input
                     type="text"
                     value={step.description}
-                    onChange={(e) => updateStep(i, "description", e.target.value)}
+                    onChange={(e) =>
+                      updateStep(i, "description", e.target.value)
+                    }
                     placeholder="Açıklama (isteğe bağlı)"
                     className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white"
                   />
@@ -152,10 +226,21 @@ export default function NewOperationPage() {
                   <button
                     type="button"
                     onClick={() => removeStep(i)}
-                    className="p-1.5 text-muted hover:text-danger hover:bg-red-50 rounded-lg transition-colors cursor-pointer mt-1"
+                    disabled={hasActiveAssignments}
+                    className="p-1.5 text-muted hover:text-danger hover:bg-red-50 rounded-lg transition-colors cursor-pointer mt-1 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
                     </svg>
                   </button>
                 )}
@@ -177,10 +262,49 @@ export default function NewOperationPage() {
             disabled={!isValid}
             className="flex-1 py-3 text-sm font-medium text-white bg-primary rounded-xl hover:bg-primary-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
-            Operasyon Oluştur
+            Değişiklikleri Kaydet
           </button>
         </div>
       </form>
     </div>
+  );
+}
+
+export default function EditOperationPage() {
+  const router = useRouter();
+  const params = useParams();
+  const { getOperationById, assignments } = useOperations();
+
+  const operationId = params.id as string;
+  const operation = getOperationById(operationId);
+
+  const hasActiveAssignments = assignments.some(
+    (a) => a.operationId === operationId && a.status === "active"
+  );
+
+  if (!operation) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center">
+          <h2 className="text-lg font-semibold text-foreground mb-2">
+            Operasyon bulunamadı
+          </h2>
+          <button
+            onClick={() => router.push("/dashboard/manager/operations")}
+            className="text-sm text-primary hover:underline cursor-pointer"
+          >
+            Operasyonlara dön
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <EditForm
+      key={operation.id}
+      operation={operation}
+      hasActiveAssignments={hasActiveAssignments}
+    />
   );
 }

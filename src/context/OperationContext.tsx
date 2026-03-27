@@ -20,6 +20,7 @@ interface OperationContextType {
   operations: Operation[];
   assignments: Assignment[];
   addOperation: (op: Omit<Operation, "id" | "createdAt">) => void;
+  updateOperation: (id: string, updates: Partial<Pick<Operation, "title" | "description" | "steps">>) => void;
   deleteOperation: (id: string) => void;
   assignOperation: (operationId: string, workerId: string) => void;
   unassignOperation: (assignmentId: string) => void;
@@ -61,6 +62,17 @@ export function OperationProvider({ children }: { children: ReactNode }) {
       const next = [...operations, newOp];
       setOperations(next);
       saveOperations(next);
+    },
+    [operations]
+  );
+
+  const updateOperation = useCallback(
+    (id: string, updates: Partial<Pick<Operation, "title" | "description" | "steps">>) => {
+      const nextOps = operations.map((o) =>
+        o.id === id ? { ...o, ...updates } : o
+      );
+      setOperations(nextOps);
+      saveOperations(nextOps);
     },
     [operations]
   );
@@ -199,6 +211,7 @@ export function OperationProvider({ children }: { children: ReactNode }) {
         operations,
         assignments,
         addOperation,
+        updateOperation,
         deleteOperation,
         assignOperation,
         unassignOperation,

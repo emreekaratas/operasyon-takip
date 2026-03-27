@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationContext";
+import { useToast } from "@/context/ToastContext";
 import StepProgress from "@/components/StepProgress";
 
 export default function WorkerDashboard() {
@@ -12,6 +13,16 @@ export default function WorkerDashboard() {
     advanceStep,
     getAssignmentProgress,
   } = useOperations();
+  const { showToast } = useToast();
+
+  const handleAdvance = (assignmentId: string, opTitle: string, isLastStep: boolean) => {
+    advanceStep(assignmentId);
+    if (isLastStep) {
+      showToast(`"${opTitle}" operasyonu tamamlandı!`, "success");
+    } else {
+      showToast("Adım tamamlandı, sonraki adıma geçildi", "success");
+    }
+  };
 
   if (!user) return null;
 
@@ -145,7 +156,7 @@ export default function WorkerDashboard() {
 
                   <div className="px-5 pb-5">
                     <button
-                      onClick={() => advanceStep(assign.id)}
+                      onClick={() => handleAdvance(assign.id, op.title, assign.currentStepIndex === op.steps.length - 1)}
                       className="w-full py-3 bg-primary text-white font-medium rounded-xl hover:bg-primary-hover transition-colors cursor-pointer flex items-center justify-center gap-2"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,18 +1,57 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useOperations } from "@/context/OperationContext";
 import { useAuth } from "@/context/AuthContext";
-import { Operation } from "@/types";
+import { useToast } from "@/context/ToastContext";
+import { Operation, OperationStatus } from "@/types";
 import AssignModal from "@/components/AssignModal";
 import StepProgress from "@/components/StepProgress";
+
+type FilterStatus = "all" | OperationStatus;
 
 export default function OperationsPage() {
   const { operations, assignments, deleteOperation } = useOperations();
   const { users } = useAuth();
+  const { showToast } = useToast();
   const [assignOp, setAssignOp] = useState<Operation | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchInput]);
+
+  const filteredOperations = useMemo(() => {
+    let result = operations;
+    if (statusFilter !== "all") {
+      result = result.filter((op) => op.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (op) =>
+          op.title.toLowerCase().includes(q) ||
+          op.description.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [operations, statusFilter, searchQuery]);
+
+  const handleDelete = (op: Operation) => {
+    deleteOperation(op.id);
+    showToast(`"${op.title}" operasyonu silindi`, "error");
+  };
 
   const getAssignedWorkers = (opId: string) => {
     const opAssigns = assignments.filter((a) => a.operationId === opId);
@@ -21,6 +60,13 @@ export default function OperationsPage() {
       return { assignment: a, worker };
     });
   };
+
+  const filterButtons: { label: string; value: FilterStatus }[] = [
+    { label: "Tümü", value: "all" },
+    { label: "Taslak", value: "draft" },
+    { label: "Aktif", value: "active" },
+    { label: "Tamamlandı", value: "completed" },
+  ];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -42,6 +88,46 @@ export default function OperationsPage() {
         </Link>
       </div>
 
+      <div className="bg-card rounded-2xl border border-border p-4 space-y-3">
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Operasyon ara..."
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          {filterButtons.map((btn) => (
+            <button
+              key={btn.value}
+              onClick={() => setStatusFilter(btn.value)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                statusFilter === btn.value
+                  ? "bg-primary text-white"
+                  : "bg-slate-100 text-muted hover:bg-slate-200"
+              }`}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {operations.length === 0 ? (
         <div className="bg-card rounded-2xl border border-border p-12 text-center">
           <div className="w-16 h-16 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
@@ -58,9 +144,27 @@ export default function OperationsPage() {
             Operasyon Oluştur
           </Link>
         </div>
+      ) : filteredOperations.length === 0 ? (
+        <div className="bg-card rounded-2xl border border-border p-12 text-center">
+          <div className="w-16 h-16 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+            <svg className="w-8 h-8 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <h3 className="font-semibold text-foreground mb-1">Sonuç bulunamadı</h3>
+          <p className="text-sm text-muted mb-4">
+            Arama kriterlerinize uygun operasyon bulunamadı
+          </p>
+          <button
+            onClick={() => { setSearchInput(""); setStatusFilter("all"); }}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-primary bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors cursor-pointer"
+          >
+            Filtreleri Temizle
+          </button>
+        </div>
       ) : (
         <div className="space-y-4">
-          {operations.map((op) => {
+          {filteredOperations.map((op) => {
             const assigned = getAssignedWorkers(op.id);
             const isExpanded = expandedId === op.id;
 
@@ -70,7 +174,12 @@ export default function OperationsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{op.title}</h3>
+                        <Link
+                          href={`/dashboard/manager/operations/${op.id}`}
+                          className="font-semibold text-foreground hover:text-primary transition-colors"
+                        >
+                          {op.title}
+                        </Link>
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                             op.status === "completed"
@@ -106,6 +215,12 @@ export default function OperationsPage() {
                       >
                         Ata
                       </button>
+                      <Link
+                        href={`/dashboard/manager/operations/${op.id}/edit`}
+                        className="px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
+                      >
+                        Düzenle
+                      </Link>
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : op.id)}
                         className="px-3 py-1.5 text-xs font-medium text-muted bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors cursor-pointer"
@@ -113,7 +228,7 @@ export default function OperationsPage() {
                         {isExpanded ? "Kapat" : "Detay"}
                       </button>
                       <button
-                        onClick={() => deleteOperation(op.id)}
+                        onClick={() => handleDelete(op)}
                         className="px-3 py-1.5 text-xs font-medium text-danger bg-red-50 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
                       >
                         Sil

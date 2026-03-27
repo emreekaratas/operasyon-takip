@@ -38,3 +38,11 @@ export interface Assignment {
   startedAt: string;
   completedAt?: string;
 }
+
+export interface Notification {
+  id: string;
+  userId: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}

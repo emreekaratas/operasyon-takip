@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useOperations } from "@/context/OperationContext";
+import { useToast } from "@/context/ToastContext";
 import { Operation } from "@/types";
 
 interface AssignModalProps {
@@ -12,6 +13,7 @@ interface AssignModalProps {
 export default function AssignModal({ operation, onClose }: AssignModalProps) {
   const { users } = useAuth();
   const { assignOperation, assignments, unassignOperation } = useOperations();
+  const { showToast } = useToast();
 
   const workers = users.filter((u) => u.role === "worker");
   const operationAssignments = assignments.filter(
@@ -25,11 +27,16 @@ export default function AssignModal({ operation, onClose }: AssignModalProps) {
     operationAssignments.find((a) => a.workerId === workerId)?.id;
 
   const handleToggle = (workerId: string) => {
+    const worker = workers.find((w) => w.id === workerId);
     if (isAssigned(workerId)) {
       const assignmentId = getAssignmentId(workerId);
-      if (assignmentId) unassignOperation(assignmentId);
+      if (assignmentId) {
+        unassignOperation(assignmentId);
+        showToast(`${worker?.name} ataması kaldırıldı`, "info");
+      }
     } else {
       assignOperation(operation.id, workerId);
+      showToast(`${worker?.name} başarıyla atandı`, "success");
     }
   };
 
