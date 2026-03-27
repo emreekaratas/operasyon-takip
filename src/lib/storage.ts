@@ -8,10 +8,10 @@ const KEYS = {
 };
 
 const SEED_USERS: User[] = [
-  { id: "m1", name: "Ahmet Yılmaz", role: "manager" },
-  { id: "w1", name: "Mehmet Kaya", role: "worker" },
-  { id: "w2", name: "Ayşe Demir", role: "worker" },
-  { id: "w3", name: "Fatma Çelik", role: "worker" },
+  { id: "m1", name: "Ahmet Yılmaz", email: "ahmet@example.com", role: "manager" },
+  { id: "w1", name: "Mehmet Kaya", email: "mehmet@example.com", role: "worker" },
+  { id: "w2", name: "Ayşe Demir", email: "ayse@example.com", role: "worker" },
+  { id: "w3", name: "Fatma Çelik", email: "fatma@example.com", role: "worker" },
 ];
 
 function get<T>(key: string, fallback: T): T {

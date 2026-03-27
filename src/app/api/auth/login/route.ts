@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import { cookies } from "next/headers";
-import { getUserById } from "@/lib/store";
+import { getStoredUserByEmail, stripPasswordHash } from "@/lib/store";
+import { verifyPassword } from "@/lib/hash";
+import { setSessionCookie } from "@/lib/session";
 
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown>;
@@ -13,31 +14,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { userId } = body as { userId?: string };
+  const { email, password } = body as { email?: string; password?: string };
 
-  if (!userId || typeof userId !== "string") {
+  if (!email || typeof email !== "string") {
     return Response.json(
-      { error: "userId zorunludur" },
+      { error: "Email zorunludur" },
       { status: 400 }
     );
   }
 
-  const user = getUserById(userId);
-  if (!user) {
+  if (!password || typeof password !== "string") {
     return Response.json(
-      { error: "Kullanıcı bulunamadı" },
-      { status: 404 }
+      { error: "Şifre zorunludur" },
+      { status: 400 }
     );
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set("session_user", JSON.stringify(user), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  });
+  if (password.length < 4) {
+    return Response.json(
+      { error: "Şifre en az 4 karakter olmalıdır" },
+      { status: 400 }
+    );
+  }
 
-  return Response.json(user);
+  const storedUser = getStoredUserByEmail(email);
+  if (!storedUser || !verifyPassword(password, storedUser.passwordHash)) {
+    return Response.json(
+      { error: "Geçersiz email veya şifre" },
+      { status: 401 }
+    );
+  }
+
+  await setSessionCookie(storedUser.id);
+
+  return Response.json(stripPasswordHash(storedUser));
 }

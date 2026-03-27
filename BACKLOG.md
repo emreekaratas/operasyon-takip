@@ -150,3 +150,48 @@ Product Manager tarafından yönetilir. Developer agent'lar buradan iş alır.
   - [x] Toplam, aktif, tamamlanan operasyon sayıları
   - [x] İşçi bazında aktif görev ve ortalama ilerleme yüzdesi
   - [x] Son 7 günde tamamlanan görev sayısı
+
+---
+
+### [GÖREV-011] Gerçek Authentication Backend (Email + Şifre)
+- **Durum**: Tamamlandı
+- **Öncelik**: Yüksek
+- **Atanan**: Agent A
+- **Açıklama**: Mock authentication'ı kaldır, gerçek email + şifre tabanlı giriş sistemi oluştur. Kullanıcılar in-memory store'da email ve hashlenmiş şifre ile saklanacak. Login API'si email + şifre alıp doğrulama yapacak. Şifreler plain text saklanmayacak, basit bir hash mekanizması kullanılacak. Seed kullanıcılara varsayılan şifreler tanımlanacak.
+- **Kabul Kriterleri**:
+  - [x] User modeline `email` ve `passwordHash` alanları eklendi
+  - [x] `POST /api/auth/login` email + şifre alıp doğrulama yapıyor
+  - [x] Yanlış email veya şifrede `401 { error: "Geçersiz email veya şifre" }` döndürüyor
+  - [x] Şifreler plain text saklanmıyor (basit hash kullanılıyor)
+  - [x] Seed kullanıcılar varsayılan şifrelerle tanımlı (ör: "1234")
+  - [x] `POST /api/auth/register` ile yeni kullanıcı kaydı oluşturulabiliyor
+  - [x] Mevcut cookie-based session mekanizması korunuyor
+
+---
+
+### [GÖREV-012] Login Sayfasını Email + Şifre Formuna Dönüştür
+- **Durum**: Tamamlandı
+- **Öncelik**: Yüksek
+- **Atanan**: Agent B
+- **Açıklama**: Mevcut kullanıcı seçmeli login sayfasını gerçek bir email + şifre formuna dönüştür. Form validasyonu ekle. Hatalı giriş denemelerinde kullanıcıya hata mesajı göster. Başarılı girişte dashboard'a yönlendir. Opsiyonel olarak "Kayıt Ol" linki ekle.
+- **Kabul Kriterleri**:
+  - [x] Login sayfasında email ve şifre inputları var
+  - [x] "Giriş Yap" butonu email + şifre ile `/api/auth/login`'e istek atıyor
+  - [x] Boş alan bırakılırsa form validasyonu uyarı gösteriyor
+  - [x] Yanlış giriş denemesinde kırmızı hata mesajı gösteriliyor
+  - [x] Başarılı girişte role göre dashboard'a yönlendiriliyor
+  - [x] "Kayıt Ol" sayfasına link eklendi
+  - [x] Kayıt ol sayfası: isim, email, şifre, rol seçimi formu
+
+---
+
+### [GÖREV-013] Şifre Güvenliği ve Oturum İyileştirmesi
+- **Durum**: Tamamlandı
+- **Öncelik**: Orta
+- **Atanan**: Agent A
+- **Açıklama**: Oturum güvenliğini artır. Cookie'ye httpOnly ve secure flag'leri ekle. Oturum süresi sınırla (ör: 24 saat). Şifre minimum uzunluk kontrolü ekle (en az 4 karakter).
+- **Kabul Kriterleri**:
+  - [x] Cookie httpOnly olarak set ediliyor
+  - [x] Şifre minimum 4 karakter kontrolü var (register ve login'de)
+  - [x] Oturum süresi 24 saatle sınırlı
+  - [x] Süresi dolan oturumda otomatik logout ve login sayfasına yönlendirme

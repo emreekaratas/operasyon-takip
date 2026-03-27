@@ -1,24 +1,14 @@
-import { cookies } from "next/headers";
-import { User } from "@/types";
+import { getSessionUser } from "@/lib/session";
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("session_user");
+  const user = await getSessionUser();
 
-  if (!sessionCookie) {
+  if (!user) {
     return Response.json(
       { error: "Oturum bulunamadı" },
       { status: 401 }
     );
   }
 
-  try {
-    const user: User = JSON.parse(sessionCookie.value);
-    return Response.json(user);
-  } catch {
-    return Response.json(
-      { error: "Geçersiz oturum verisi" },
-      { status: 401 }
-    );
-  }
+  return Response.json(user);
 }

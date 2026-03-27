@@ -3,8 +3,18 @@ export type UserRole = "manager" | "worker";
 export interface User {
   id: string;
   name: string;
+  email: string;
   role: UserRole;
   avatar?: string;
+}
+
+export interface StoredUser extends User {
+  passwordHash: string;
+}
+
+export interface SessionPayload {
+  userId: string;
+  expiresAt: number;
 }
 
 export type StepStatus = "pending" | "in_progress" | "completed";

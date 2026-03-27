@@ -9,12 +9,22 @@ import {
   useCallback,
 } from "react";
 import { User } from "@/types";
-import { getCurrentUser, setCurrentUser, getUsers } from "@/lib/storage";
+
+interface AuthResult {
+  success: boolean;
+  error?: string;
+}
 
 interface AuthContextType {
   user: User | null;
   users: User[];
-  login: (user: User) => void;
+  login: (email: string, password: string) => Promise<AuthResult>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    role: "manager" | "worker"
+  ) => Promise<AuthResult>;
   logout: () => void;
   loading: boolean;
 }
@@ -27,23 +37,123 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setUser(getCurrentUser());
-    setUsers(getUsers());
-    setLoading(false);
+    async function init() {
+      try {
+        const [meRes, usersRes] = await Promise.all([
+          fetch("/api/auth/me"),
+          fetch("/api/users"),
+        ]);
+
+        if (meRes.ok) {
+          const me: User = await meRes.json();
+          setUser(me);
+        }
+
+        if (usersRes.ok) {
+          const allUsers: User[] = await usersRes.json();
+          setUsers(allUsers);
+        }
+      } catch {
+        // API unavailable — stay logged out
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    init();
   }, []);
 
-  const login = useCallback((u: User) => {
-    setUser(u);
-    setCurrentUser(u);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string): Promise<AuthResult> => {
+      try {
+        const res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
 
-  const logout = useCallback(() => {
+        const data = await res.json();
+
+        if (!res.ok) {
+          return { success: false, error: data.error || "Giriş başarısız" };
+        }
+
+        setUser(data as User);
+        return { success: true };
+      } catch {
+        return { success: false, error: "Sunucuya bağlanılamadı" };
+      }
+    },
+    []
+  );
+
+  const register = useCallback(
+    async (
+      name: string,
+      email: string,
+      password: string,
+      role: "manager" | "worker"
+    ): Promise<AuthResult> => {
+      try {
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, role }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          return { success: false, error: data.error || "Kayıt başarısız" };
+        }
+
+        setUser(data as User);
+
+        const usersRes = await fetch("/api/users");
+        if (usersRes.ok) {
+          setUsers(await usersRes.json());
+        }
+
+        return { success: true };
+      } catch {
+        return { success: false, error: "Sunucuya bağlanılamadı" };
+      }
+    },
+    []
+  );
+
+  const logout = useCallback(async () => {
     setUser(null);
-    setCurrentUser(null);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5 min
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.status === 401) {
+          setUser(null);
+        }
+      } catch {
+        // network error — keep current state
+      }
+    }, SESSION_CHECK_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, users, login, logout, loading }}>
+    <AuthContext.Provider
+      value={{ user, users, login, register, logout, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );
